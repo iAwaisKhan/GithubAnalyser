@@ -17,6 +17,7 @@ import PersonaBadge from "@/components/PersonaBadge";
 import ProfileCardPreview from "@/components/ProfileCardPreview";
 import GrowthTracker from "@/components/GrowthTracker";
 import StorySection from "@/components/StorySection";
+import TechRadar from "@/components/TechRadar";
 
 type Tone = "formal" | "impact" | "concise";
 
@@ -28,7 +29,7 @@ interface Analysis { strengths: string[]; weaknesses: string[]; summary: string;
 interface Persona { type: string; emoji: string; description: string; traits: string[]; insight: string; }
 interface Snapshot { id: number; username: string; repo_count: number; total_stars: number; consistency_score: number; avg_repo_score: number; top_language: string | null; created_at: string; }
 interface GrowthDiff { repo_growth: number; stars_growth: number; consistency_change: number; score_change: number; snapshots_available: number; latest: Snapshot; previous: Snapshot | null; }
-interface ApiData { profile: Profile; repos: Repo[]; consistency: ConsistencyData; languages: Record<string, number>; skills: string[]; analysis: Analysis; resume_points: string[]; persona: Persona; growth: { diff: GrowthDiff | null; history: Snapshot[]; insight: string }; story: string; }
+interface ApiData { profile: Profile; repos: Repo[]; consistency: ConsistencyData; languages: Record<string, number>; skills: string[]; analysis: Analysis; resume_points: string[]; persona: Persona; growth: { diff: GrowthDiff | null; history: Snapshot[]; insight: string }; story: string; radar: { axes: { axis: string; score: number }[]; strongestDomain: string; proficiency: string }; }
 
 const LOADING_STEPS = [
   "fetching github profile...",
@@ -168,6 +169,7 @@ export default function Home() {
           <ErrorBoundary section="resume"><ResumeSection points={resumePoints} username={data.profile.login} onRegenerate={handleRegenerate} /></ErrorBoundary>
           <ErrorBoundary section="growth"><GrowthTracker diff={data.growth?.diff ?? null} history={data.growth?.history ?? []} insight={data.growth?.insight ?? "No growth data available."} /></ErrorBoundary>
           <ErrorBoundary section="languages"><LanguageChart languages={data.languages} skills={data.skills} /></ErrorBoundary>
+          {data.radar && <ErrorBoundary section="tech_radar"><TechRadar radar={data.radar} /></ErrorBoundary>}
           <ErrorBoundary section="analysis"><StrengthWeakness analysis={data.analysis} /></ErrorBoundary>
           <ErrorBoundary section="heatmap"><ContributionHeatmap data={data.consistency} /></ErrorBoundary>
           {data.repos.length > 0 && (

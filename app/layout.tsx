@@ -3,6 +3,8 @@ import "./globals.css";
 import Providers from "@/components/Providers";
 // Validate env vars on first server render — throws if required vars missing
 import "@/lib/env";
+// Initialize Sentry error tracking (no-op if SENTRY_DSN not set)
+import "@/lib/sentry";
 
 export const metadata: Metadata = {
   title: "GitHub Analyzer — AI Developer Intelligence",

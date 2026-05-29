@@ -8,6 +8,7 @@ import { pool, runMigrations } from "@/lib/db";
 // Extend session types
 declare module "next-auth" {
   interface Session {
+    accessToken?: string | null;
     user: {
       id: string;
       name?: string | null;
@@ -29,27 +30,12 @@ declare module "next-auth/jwt" {
     analysesUsed: number;
     stripeCustomerId?: string | null;
     githubUsername?: string | null;
+    githubAccessToken?: string | null;
   }
 }
 
 async function ensureUserTable() {
   await runMigrations();
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id                SERIAL PRIMARY KEY,
-      email             TEXT UNIQUE NOT NULL,
-      name              TEXT,
-      image             TEXT,
-      github_username   TEXT,
-      plan              TEXT NOT NULL DEFAULT 'free',
-      analyses_used     INT  NOT NULL DEFAULT 0,
-      stripe_customer_id TEXT,
-      created_at        TIMESTAMP NOT NULL DEFAULT NOW(),
-      updated_at        TIMESTAMP NOT NULL DEFAULT NOW()
-    );
-    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-    CREATE INDEX IF NOT EXISTS idx_users_stripe ON users(stripe_customer_id);
-  `);
 }
 
 async function upsertUser(email: string, name?: string | null, image?: string | null, githubUsername?: string | null) {
@@ -114,6 +100,10 @@ export const authOptions: NextAuthOptions = {
                 ? (profile as { login?: string })?.login ?? dbUser.github_username
                 : dbUser.github_username;
           }
+          // Forward GitHub OAuth access token
+          if (account?.provider === "github" && account.access_token) {
+            token.githubAccessToken = account.access_token;
+          }
         } catch (e) {
           console.error("JWT DB error:", e);
         }
@@ -144,6 +134,7 @@ export const authOptions: NextAuthOptions = {
         session.user.stripeCustomerId = token.stripeCustomerId ?? null;
         session.user.githubUsername = token.githubUsername ?? null;
       }
+      session.accessToken = token.githubAccessToken ?? null;
       return session;
     },
   },

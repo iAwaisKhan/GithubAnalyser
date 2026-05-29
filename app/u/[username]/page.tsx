@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 interface PageProps {
-  params: { username: string };
+  params: Promise<{ username: string }>;
 }
 
 async function getAnalysis(username: string) {
@@ -20,19 +20,20 @@ async function getAnalysis(username: string) {
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const data = await getAnalysis(params.username);
+  const { username } = await params;
+  const data = await getAnalysis(username);
   if (!data) {
-    return { title: `${params.username} — GithubAnalyser` };
+    return { title: `${username} — GithubAnalyser` };
   }
   const persona = data.persona?.type ?? "Developer";
   const topLang = data.languages ? Object.keys(data.languages)[0] : "Code";
   const score = data.consistency?.score ?? 0;
 
   return {
-    title: `${params.username} — ${persona} | GithubAnalyser`,
-    description: `${params.username} is ${persona}. Top language: ${topLang}. Consistency score: ${score}/100.`,
+    title: `${username} — ${persona} | GithubAnalyser`,
+    description: `${username} is ${persona}. Top language: ${topLang}. Consistency score: ${score}/100.`,
     openGraph: {
-      title: `${params.username} ${data.persona?.emoji ?? "💻"} ${persona}`,
+      title: `${username} ${data.persona?.emoji ?? "💻"} ${persona}`,
       description: `Top language: ${topLang} · Consistency: ${score}/100 · ${data.consistency?.current_streak ?? 0}d streak`,
       images: [
         {
@@ -44,19 +45,20 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     },
     twitter: {
       card: "summary",
-      title: `${params.username} on GithubAnalyser`,
+      title: `${username} on GithubAnalyser`,
       description: `${persona} · ${topLang} · Score ${score}/100`,
     },
   };
 }
 
 export default async function PublicProfilePage({ params }: PageProps) {
-  const data = await getAnalysis(params.username);
+  const { username } = await params;
+  const data = await getAnalysis(username);
   if (!data || data.error) notFound();
 
   const { profile, persona, consistency, languages, analysis, story, collaboration } = data;
   const topLangs = languages ? Object.entries(languages as Record<string, number>).slice(0, 5) : [];
-  const badgeMarkdown = `[![GithubAnalyser](${process.env.NEXTAUTH_URL ?? ""}/api/badge/${params.username})](${process.env.NEXTAUTH_URL ?? ""}/u/${params.username})`;
+  const badgeMarkdown = `[![GithubAnalyser](${process.env.NEXTAUTH_URL ?? ""}/api/badge/${username})](${process.env.NEXTAUTH_URL ?? ""}/u/${username})`;
 
   return (
     <div className="min-h-screen bg-black text-green-400 font-mono p-6 max-w-3xl mx-auto">

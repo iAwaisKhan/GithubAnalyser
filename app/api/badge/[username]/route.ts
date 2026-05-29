@@ -60,9 +60,9 @@ function buildSvg(params: {
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { username: string } }
+  { params }: { params: Promise<{ username: string }> }
 ) {
-  const { username } = params;
+  const { username } = await params;
   if (!username) {
     return new NextResponse("Missing username", { status: 400 });
   }

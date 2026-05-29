@@ -1,6 +1,7 @@
 "use client";
 
 import { Component, ReactNode, ErrorInfo } from "react";
+import { captureException } from "@/lib/sentry";
 
 interface Props {
   children: ReactNode;
@@ -25,6 +26,10 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error(`ErrorBoundary [${this.props.section ?? "unknown"}]:`, error, info);
+    captureException(error, {
+      section: this.props.section ?? "unknown",
+      componentStack: info.componentStack ?? undefined,
+    });
   }
 
   render() {
