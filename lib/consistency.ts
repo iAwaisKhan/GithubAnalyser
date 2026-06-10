@@ -40,12 +40,16 @@ export function buildHeatmap(
 
 /** Count consecutive active days ending today (or yesterday if today = 0) */
 export function currentStreak(heatmap: DayEntry[]): number {
-  // Skip today unconditionally (matches GitHub's own streak display behaviour)
-  const reversed = [...heatmap].reverse().slice(1);
+  const reversed = [...heatmap].reverse();
+  if (reversed.length === 0) return 0;
+
+  // If today has commits, start counting from today (index 0).
+  // Otherwise, start counting from yesterday (index 1) to allow a 1-day buffer.
+  const startIdx = reversed[0].count > 0 ? 0 : 1;
   let streak = 0;
 
-  for (const { count } of reversed) {
-    if (count > 0) {
+  for (let i = startIdx; i < reversed.length; i++) {
+    if (reversed[i].count > 0) {
       streak++;
     } else {
       break;
@@ -84,7 +88,7 @@ export function consistencyScore(heatmap: DayEntry[]): number {
     (activeDays / total) * 70 +
     (longest / total) * 30;
 
-  return Math.min(100, Math.round(raw * 100));
+  return Math.min(100, Math.round(raw));
 }
 
 export interface ConsistencyStats {
