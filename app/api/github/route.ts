@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { getToken } from "next-auth/jwt";
+import type { Session } from "next-auth";
 import { z } from "zod";
 import { authOptions, PLAN_LIMITS } from "@/lib/auth";
 import { rateLimitMiddleware } from "@/lib/ratelimit";
@@ -51,7 +53,7 @@ export async function GET(req: NextRequest) {
   }
   const { username, tone, refresh: bustCache } = parsed.data;
   // ── Auth + plan check ─────────────────────────────────────────────────────
-  let session: { user: { id: string; plan: string; analysesUsed: number; analysesLimit: number; stripeCustomerId?: string | null; githubUsername?: string | null; name?: string | null; email?: string | null; image?: string | null } } | null = null;
+  let session: Session | null = null;
   let plan: "free" | "pro" | "enterprise" | "anonymous" = "anonymous";
   let userId: string | undefined;
   let githubAccessTokenForCache: string | undefined;
@@ -60,7 +62,8 @@ export async function GET(req: NextRequest) {
     session = await getServerSession(authOptions);
     plan = (session?.user?.plan ?? "anonymous") as typeof plan;
     userId = session?.user?.id;
-    githubAccessTokenForCache = (session as { accessToken?: string } | null)?.accessToken;
+    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+    githubAccessTokenForCache = token?.githubAccessToken ?? undefined;
   } catch (e) {
     console.warn("Auth check failed, continuing as anonymous:", e);
   }
@@ -165,7 +168,6 @@ export async function GET(req: NextRequest) {
 
     // ── Consistency — GraphQL first, Events API fallback ─────────────────────
     let dailyMap: Record<string, number> = {};
-    let totalContributions = 0;
     let gqlPullRequests = 0;
     let gqlIssues = 0;
     let gqlTopics: string[] = [];
@@ -175,7 +177,6 @@ export async function GET(req: NextRequest) {
       const gql = await fetchContributionsGraphQL(username, githubAccessToken ?? process.env.GITHUB_TOKEN!);
       if (gql) {
         dailyMap = gql.dailyMap;
-        totalContributions = gql.totalContributions;
         gqlPullRequests = gql.totalPullRequests;
         gqlIssues = gql.totalIssues;
         gqlTopics = gql.topTopics;
@@ -189,11 +190,8 @@ export async function GET(req: NextRequest) {
     }
 
     const consistencyStats = computeConsistency(dailyMap, 90);
-    // Keep graphqlYearlyTotal separate — don't overwrite the 90-day window total
-    const graphqlYearlyTotal = totalContributions > 0 ? totalContributions : consistencyStats.total_commits;
-
     const activityInsight = await getActivityInsight({
-      total_commits: graphqlYearlyTotal, active_days: consistencyStats.active_days,
+      total_commits: consistencyStats.total_commits, active_days: consistencyStats.active_days,
       total_days: consistencyStats.total_days, longest_streak: consistencyStats.longest_streak,
       current_streak: consistencyStats.current_streak,
     });
@@ -274,7 +272,15 @@ export async function GET(req: NextRequest) {
 
     // ── Increment usage for authenticated users ───────────────────────────────
     if (userId && process.env.DATABASE_URL) {
-      try { await incrementUsage(userId); } catch {}
+      try {
+        const usage = await incrementUsage(userId, PLAN_LIMITS[plan] ?? 5);
+        if (usage === null) {
+          return NextResponse.json(
+            { error: "Monthly analysis limit reached", upgrade_url: "/billing" },
+            { status: 429 }
+          );
+        }
+      } catch {}
     }
 
     const result = {

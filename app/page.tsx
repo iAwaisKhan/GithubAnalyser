@@ -96,7 +96,7 @@ export default function Home() {
       <AuthHeader />
 
       <div className="text-center mb-10">
-        <div className="font-mono text-xs text-green-800 tracking-[0.3em] uppercase mb-3">v8.0.0 — production ready</div>
+        <div className="font-mono text-xs text-green-800 tracking-[0.3em] uppercase mb-3">full-stack github intelligence</div>
         <h1 className="font-mono text-3xl md:text-4xl font-bold text-green-400 tracking-tight">
           <span className="text-green-600">&gt;</span> github_analyzer<span className="animate-blink text-green-500">_</span>
         </h1>

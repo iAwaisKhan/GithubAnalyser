@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import type { Session } from "next-auth";
+import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { rateLimitMiddleware } from "@/lib/ratelimit";
 import { getCache, setCache, cacheKey, CACHE_TTL } from "@/lib/redis";
@@ -62,6 +64,12 @@ async function buildUserProfile(username: string) {
 
 type UserProfile = Awaited<ReturnType<typeof buildUserProfile>>;
 
+const UsernameSchema = z
+  .string()
+  .min(1, "Username is required")
+  .max(39, "GitHub usernames are max 39 chars")
+  .regex(/^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/, "Invalid GitHub username format");
+
 function buildComparison(u1: UserProfile, u2: UserProfile) {
   const metrics = [
     { key: "public_repos", label: "Repositories", unit: "" },
@@ -89,13 +97,23 @@ function buildComparison(u1: UserProfile, u2: UserProfile) {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const user1 = searchParams.get("user1")?.trim();
-  const user2 = searchParams.get("user2")?.trim();
+  const parsed = z
+    .object({ user1: UsernameSchema, user2: UsernameSchema })
+    .safeParse({
+      user1: searchParams.get("user1")?.trim(),
+      user2: searchParams.get("user2")?.trim(),
+    });
 
-  if (!user1 || !user2) return NextResponse.json({ error: "Both user1 and user2 are required" }, { status: 400 });
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Invalid usernames" },
+      { status: 400 }
+    );
+  }
+  const { user1, user2 } = parsed.data;
   if (user1.toLowerCase() === user2.toLowerCase()) return NextResponse.json({ error: "Please enter two different usernames" }, { status: 400 });
 
-  let session: any = null;
+  let session: Session | null = null;
   try {
     const s = await getServerSession(authOptions);
     if (s) session = s;

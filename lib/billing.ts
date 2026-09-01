@@ -84,14 +84,17 @@ export async function createPortalSession(
   return session.url;
 }
 
-/** Increment usage count for a user */
-export async function incrementUsage(userId: string): Promise<number> {
+/** Increment usage atomically while the user is still within the plan limit. */
+export async function incrementUsage(userId: string, limit: number): Promise<number | null> {
   const { pool } = await import("./db");
   const res = await pool.query(
-    "UPDATE users SET analyses_used = analyses_used + 1, updated_at = NOW() WHERE id = $1 RETURNING analyses_used",
-    [userId]
+    `UPDATE users
+     SET analyses_used = analyses_used + 1, updated_at = NOW()
+     WHERE id = $1 AND analyses_used < $2
+     RETURNING analyses_used`,
+    [userId, limit]
   );
-  return res.rows[0]?.analyses_used ?? 0;
+  return res.rows[0]?.analyses_used ?? null;
 }
 
 /** Reset monthly usage — called by cron on 1st of month */

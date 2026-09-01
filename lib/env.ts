@@ -14,6 +14,8 @@ const EnvSchema = z.object({
   GITHUB_TOKEN: z.string().optional(),
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
 
   ANTHROPIC_API_KEY: z.string().optional(),
 
@@ -63,6 +65,7 @@ function validateEnv(): Env {
       { vars: ["RESEND_API_KEY"], feature: "Weekly digest emails" },
       { vars: ["SENTRY_DSN"], feature: "Error tracking (Sentry disabled)" },
       { vars: ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"], feature: "GitHub OAuth login" },
+      { vars: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"], feature: "Google OAuth login" },
     ];
 
     for (const { vars, feature } of optionalFeatures) {

@@ -8,7 +8,6 @@ import { pool, runMigrations } from "@/lib/db";
 // Extend session types
 declare module "next-auth" {
   interface Session {
-    accessToken?: string | null;
     user: {
       id: string;
       name?: string | null;
@@ -54,18 +53,29 @@ async function upsertUser(email: string, name?: string | null, image?: string | 
   return res.rows[0];
 }
 
-export const authOptions: NextAuthOptions = {
-  providers: [
+const providers: NextAuthOptions["providers"] = [];
+
+if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
+  providers.push(
     GithubProvider({
-      clientId: process.env.GITHUB_CLIENT_ID!,
-      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+      clientId: process.env.GITHUB_CLIENT_ID,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET,
       authorization: { params: { scope: "read:user user:email" } },
-    }),
+    })
+  );
+}
+
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  providers.push(
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
-  ],
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    })
+  );
+}
+
+export const authOptions: NextAuthOptions = {
+  providers,
 
   callbacks: {
     async signIn({ user, account, profile }) {
@@ -134,7 +144,6 @@ export const authOptions: NextAuthOptions = {
         session.user.stripeCustomerId = token.stripeCustomerId ?? null;
         session.user.githubUsername = token.githubUsername ?? null;
       }
-      session.accessToken = token.githubAccessToken ?? null;
       return session;
     },
   },

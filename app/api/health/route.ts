@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getCache } from "@/lib/redis";
+import { NextResponse } from "next/server";
+import { redis } from "@/lib/redis";
 
 interface HealthStatus {
   status: "healthy" | "degraded" | "unhealthy";
@@ -14,63 +14,28 @@ interface HealthStatus {
 
 const START_TIME = Date.now();
 
-export async function GET(_req: NextRequest): Promise<NextResponse<HealthStatus>> {
+export async function GET(): Promise<NextResponse<HealthStatus>> {
   const timestamp = new Date().toISOString();
   const uptime_seconds = Math.floor((Date.now() - START_TIME) / 1000);
 
   const checks: HealthStatus["checks"] = {};
 
-  // ── Redis check ───────────────────────────────────────────────────────────
-  try {
-    const testKey = "health:ping";
-    await getCache(testKey); // This will fail gracefully if Redis unavailable
-    checks.redis = true;
-  } catch {
-    checks.redis = false;
+  // Keep health checks cheap: do not make billable or rate-limited requests.
+  if (process.env.UPSTASH_REDIS_REST_URL || process.env.UPSTASH_REDIS_REST_TOKEN) {
+    checks.redis = Boolean(redis);
   }
 
   // ── Anthropic check ───────────────────────────────────────────────────────
-  if (process.env.ANTHROPIC_API_KEY) {
-    try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": process.env.ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: "claude-opus-4-1",
-          max_tokens: 10,
-          messages: [{ role: "user", content: "ok" }],
-        }),
-      });
-      checks.anthropic = res.ok || res.status === 401; // 401 = auth issue, still "up"
-    } catch {
-      checks.anthropic = false;
-    }
-  }
+  if (process.env.ANTHROPIC_API_KEY) checks.anthropic = true;
 
   // ── GitHub API check ──────────────────────────────────────────────────────
-  if (process.env.GITHUB_TOKEN) {
-    try {
-      const res = await fetch("https://api.github.com/user", {
-        headers: {
-          Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-          Accept: "application/vnd.github+json",
-        },
-      });
-      checks.github_api = res.ok || res.status === 401;
-    } catch {
-      checks.github_api = false;
-    }
-  }
+  if (process.env.GITHUB_TOKEN) checks.github_api = true;
 
   // ── Determine overall status ───────────────────────────────────────────────
   const checkValues = Object.values(checks);
   const healthyCount = checkValues.filter(Boolean).length;
   const status =
-    healthyCount === checkValues.length
+    checkValues.length === 0 || healthyCount === checkValues.length
       ? "healthy"
       : healthyCount > 0
         ? "degraded"
